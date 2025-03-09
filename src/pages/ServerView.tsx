@@ -287,8 +287,9 @@ export function ServerView() {
                     <span className="text-sm text-gray-600 dark:text-gray-400">
                       {new Intl.NumberFormat('fr-FR', {
                         style: 'currency',
-                        currency: 'EUR',
-                      }).format(item.dish.price * item.quantity)}
+                        currency: 'XOF',
+                        currencyDisplay: 'narrowSymbol'
+                      }).format(item.dish.price * item.quantity).replace('XOF', 'Fr')}
                     </span>
                   </div>
                 ))}
@@ -300,8 +301,9 @@ export function ServerView() {
                   <span className="font-semibold text-gray-900 dark:text-white">
                     {new Intl.NumberFormat('fr-FR', {
                       style: 'currency',
-                      currency: 'EUR',
-                    }).format(order.total)}
+                      currency: 'XOF',
+                      currencyDisplay: 'narrowSymbol'
+                    }).format(order.total).replace('XOF', 'Fr')}
                   </span>
                 </div>
                 

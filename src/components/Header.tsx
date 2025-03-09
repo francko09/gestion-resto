@@ -8,8 +8,8 @@ interface HeaderProps {
   onCartClick: () => void;
   onServerViewClick?: () => void;
   onBackToMenu?: () => void;
-  onPageChange?: (page: 'menu' | 'about' | 'contact') => void;
-  currentPage?: 'menu' | 'about' | 'contact';
+  onPageChange?: (page: 'menu' | 'about' | 'reviews') => void;
+  currentPage?: 'menu' | 'about' | 'reviews';
 }
 
 export function Header({ 
@@ -38,7 +38,7 @@ export function Header({
     setIsMenuOpen(!isMenuOpen);
   };
 
-  const handlePageChange = (page: 'menu' | 'about' | 'contact') => {
+  const handlePageChange = (page: 'menu' | 'about' | 'reviews') => {
     if (onPageChange) {
       onPageChange(page);
       setIsMenuOpen(false);
@@ -94,11 +94,11 @@ export function Header({
                   À propos
                 </button>
                 <button
-                  onClick={() => handlePageChange('contact')}
+                  onClick={() => handlePageChange('reviews')}
                   className={`text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors
-                            ${currentPage === 'contact' ? 'text-blue-600 dark:text-blue-400 font-medium' : ''}`}
+                            ${currentPage === 'reviews' ? 'text-blue-600 dark:text-blue-400 font-medium' : ''}`}
                 >
-                  Contact
+                  Avis
                 </button>
               </nav>
             )}
@@ -180,14 +180,14 @@ export function Header({
                 À propos
               </button>
               <button
-                onClick={() => handlePageChange('contact')}
+                onClick={() => handlePageChange('reviews')}
                 className={`text-left px-4 py-2 rounded-lg transition-colors
-                          ${currentPage === 'contact'
+                          ${currentPage === 'reviews'
                             ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
                             : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                           }`}
               >
-                Contact
+                Avis
               </button>
             </nav>
           </div>

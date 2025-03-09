@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Header } from './components/Header';
 import { MenuPage } from './pages/MenuPage';
 import { AboutPage } from './pages/AboutPage';
-import { ContactPage } from './pages/ContactPage';
+import { ReviewsPage } from './pages/ReviewsPage';
 import { Cart } from './components/Cart';
 import { ServerView } from './pages/ServerView';
 import { AdminView } from './pages/AdminView';
@@ -13,7 +13,7 @@ import { DarkModeProvider } from './context/DarkModeContext';
 
 function AppContent() {
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState<'menu' | 'about' | 'contact'>('menu');
+  const [currentPage, setCurrentPage] = useState<'menu' | 'about' | 'reviews'>('menu');
   const [isServerView, setIsServerView] = useState(false);
   const { user } = useAuth();
 
@@ -61,7 +61,7 @@ function AppContent() {
 
       {currentPage === 'menu' && <MenuPage />}
       {currentPage === 'about' && <AboutPage />}
-      {currentPage === 'contact' && <ContactPage />}
+      {currentPage === 'reviews' && <ReviewsPage />}
     </div>
   );
 }
@@ -77,5 +77,4 @@ function App() {
     </DarkModeProvider>
   );
 }
-
 export default App;

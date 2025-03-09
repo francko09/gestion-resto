@@ -232,8 +232,9 @@ export function Cart({ isOpen, onClose }: CartProps) {
                       <p className="text-sm text-gray-500 dark:text-gray-300">
                         {new Intl.NumberFormat('fr-FR', {
                           style: 'currency',
-                          currency: 'EUR',
-                        }).format(item.dish.price * item.quantity)}
+                          currency: 'XOF',
+                          currencyDisplay: 'narrowSymbol'
+                        }).format(item.dish.price * item.quantity).replace('XOF', 'Fr')}
                       </p>
                       <div className="flex items-center space-x-2 mt-2">
                         <button
@@ -290,8 +291,9 @@ export function Cart({ isOpen, onClose }: CartProps) {
               <span className="font-semibold text-gray-900 dark:text-white">
                 {new Intl.NumberFormat('fr-FR', {
                   style: 'currency',
-                  currency: 'EUR',
-                }).format(state.total)}
+                  currency: 'XOF',
+                  currencyDisplay: 'narrowSymbol'
+                }).format(state.total).replace('XOF', 'Fr')}
               </span>
             </div>
             {currentOrder ? (

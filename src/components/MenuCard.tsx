@@ -25,8 +25,9 @@ export function MenuCard({ dish, onAddToCart }: MenuCardProps) {
           <span className="text-lg font-bold text-gray-900 dark:text-white">
             {new Intl.NumberFormat('fr-FR', {
               style: 'currency',
-              currency: 'EUR',
-            }).format(dish.price)}
+              currency: 'XOF',
+              currencyDisplay: 'narrowSymbol'
+            }).format(dish.price).replace('XOF', 'Fr')}
           </span>
           <button
             onClick={() => onAddToCart(dish)}

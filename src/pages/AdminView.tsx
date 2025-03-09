@@ -461,8 +461,9 @@ function ReportSection() {
             <p class="total">Nombre total de commandes: ${report.totalOrders}</p>
             <p class="total">Chiffre d'affaires total: ${new Intl.NumberFormat('fr-FR', {
               style: 'currency',
-              currency: 'EUR'
-            }).format(report.totalRevenue)}</p>
+              currency: 'XOF',
+              currencyDisplay: 'narrowSymbol'
+            }).format(report.totalRevenue).replace('XOF', 'Fr')}</p>
           </div>
 
           <div class="section">
@@ -483,8 +484,9 @@ function ReportSection() {
                     <td>${dish.quantity}</td>
                     <td>${new Intl.NumberFormat('fr-FR', {
                       style: 'currency',
-                      currency: 'EUR'
-                    }).format(dish.revenue)}</td>
+                      currency: 'XOF',
+                      currencyDisplay: 'narrowSymbol'
+                    }).format(dish.revenue).replace('XOF', 'Fr')}</td>
                     <td>${((dish.revenue / report.totalRevenue) * 100).toFixed(1)}%</td>
                   </tr>
                 `).join('')}
@@ -619,8 +621,9 @@ function ReportSection() {
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">
                       {new Intl.NumberFormat('fr-FR', {
                         style: 'currency',
-                        currency: 'EUR',
-                      }).format(report.totalRevenue)}
+                        currency: 'XOF',
+                        currencyDisplay: 'narrowSymbol'
+                      }).format(report.totalRevenue).replace('XOF', 'Fr')}
                     </p>
                   </div>
                   <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
@@ -665,8 +668,9 @@ function ReportSection() {
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                                 {new Intl.NumberFormat('fr-FR', {
                                   style: 'currency',
-                                  currency: 'EUR',
-                                }).format(dish.revenue)}
+                                  currency: 'XOF',
+                                  currencyDisplay: 'narrowSymbol'
+                                }).format(dish.revenue).replace('XOF', 'Fr')}
                               </td>
                             </tr>
                           ))}
@@ -938,8 +942,9 @@ export function AdminView() {
                         <span className="text-sm font-medium text-gray-900 dark:text-white">
                           {new Intl.NumberFormat('fr-FR', {
                             style: 'currency',
-                            currency: 'EUR',
-                          }).format(dish.price)}
+                            currency: 'XOF',
+                            currencyDisplay: 'narrowSymbol'
+                          }).format(dish.price).replace('XOF', 'Fr')}
                         </span>
                         <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">• {dish.category}</span>
                       </div>
