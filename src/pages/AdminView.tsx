@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Pencil, Trash2, X, FileText, Printer, Calendar, ChevronDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, FileText, Printer, Calendar, ChevronDown, QrCode, Download } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import type { Dish, Order, SupabaseOrder, SupabaseOrderItem } from '../types';
 import { supabase } from '../lib/supabase';
 
@@ -720,6 +721,116 @@ function ReportSection() {
   );
 }
 
+function QRCodeSection() {
+  const [qrValue, setQrValue] = useState('');
+  const [qrSize, setQrSize] = useState(256);
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const handleDownload = () => {
+    const svg = document.getElementById('qr-code');
+    if (svg) {
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      
+      img.onload = () => {
+        canvas.width = qrSize;
+        canvas.height = qrSize;
+        ctx?.drawImage(img, 0, 0);
+        const pngFile = canvas.toDataURL('image/png');
+        
+        const downloadLink = document.createElement('a');
+        downloadLink.download = 'qrcode.png';
+        downloadLink.href = pngFile;
+        downloadLink.click();
+      };
+      
+      img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+    }
+  };
+
+  return (
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
+      <div 
+        className="flex items-center justify-between cursor-pointer"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        <div className="flex items-center">
+          <QrCode className="h-5 w-5 mr-2 text-gray-500" />
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Générateur de QR Code
+          </h3>
+          <ChevronDown 
+            className={`ml-2 h-5 w-5 text-gray-500 transform transition-transform duration-200 ${
+              isExpanded ? 'rotate-180' : ''
+            }`}
+          />
+        </div>
+      </div>
+
+      <div className={`mt-6 transition-all duration-200 ${isExpanded ? 'block' : 'hidden'}`}>
+        <div className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Texte ou URL pour le QR Code
+            </label>
+            <input
+              type="text"
+              value={qrValue}
+              onChange={(e) => setQrValue(e.target.value)}
+              placeholder="Entrez le texte ou l'URL à encoder"
+              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md 
+                       bg-white dark:bg-gray-700 text-gray-900 dark:text-white
+                       focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Taille du QR Code: {qrSize}x{qrSize}
+            </label>
+            <input
+              type="range"
+              min="128"
+              max="512"
+              step="32"
+              value={qrSize}
+              onChange={(e) => setQrSize(Number(e.target.value))}
+              className="w-full"
+            />
+          </div>
+
+          <div className="flex flex-col items-center space-y-4">
+            {qrValue && (
+              <>
+                <div className="p-4 bg-white rounded-lg">
+                  <QRCodeSVG
+                    id="qr-code"
+                    value={qrValue}
+                    size={qrSize}
+                    level="H"
+                    includeMargin
+                    className="mx-auto"
+                  />
+                </div>
+                <button
+                  onClick={handleDownload}
+                  className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-md 
+                           hover:bg-blue-700 transition-colors"
+                >
+                  <Download className="h-5 w-5" />
+                  <span>Télécharger le QR Code</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function AdminView() {
   const [dishes, setDishes] = useState<Dish[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -897,6 +1008,7 @@ export function AdminView() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <ReportSection />
+      <QRCodeSection />
       
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Gestion du Menu</h2>
