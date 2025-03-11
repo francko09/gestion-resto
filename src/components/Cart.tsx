@@ -126,17 +126,20 @@ export function Cart({ isOpen, onClose }: CartProps) {
     try {
       // 1. Créer d'abord la commande simple
       console.log('Création de la commande...');
+      const now = new Date();
       const orderToCreate = {
         table_number: parseInt(tableNumber),
         status: 'pending',
-        total: state.total
+        total: state.total,
+        created_at: now.toISOString(),
+        updated_at: now.toISOString()
       };
-      console.log('Données de la commande:', orderToCreate);
+      console.log('Données de la commande à créer:', orderToCreate);
 
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .insert(orderToCreate)
-        .select()
+        .select('*, order_items(*)') // Sélectionner tous les champs après l'insertion
         .single();
 
       if (orderError) {

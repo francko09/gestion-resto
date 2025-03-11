@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 export function ServerView() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [servedOrdersAscending, setServedOrdersAscending] = useState(true);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Fonction pour jouer le son de notification
@@ -15,6 +16,34 @@ export function ServerView() {
         console.error('Erreur lors de la lecture du son:', error);
       });
     }
+  };
+
+  // Fonction pour trier les commandes
+  const sortOrders = (ordersToSort: Order[]) => {
+    return ordersToSort.sort((a, b) => {
+      // Définir l'ordre de priorité des statuts
+      const statusPriority = {
+        'pending': 0,    // Commandes validées en premier
+        'preparing': 1,  // Commandes en préparation ensuite
+        'ready': 2,      // Commandes prêtes après
+        'served': 3      // Commandes servies en dernier
+      };
+
+      // D'abord trier par statut
+      const statusDiff = statusPriority[a.status] - statusPriority[b.status];
+      if (statusDiff !== 0) return statusDiff;
+
+      // Si même statut, trier par date
+      if (a.status === 'served') {
+        // Pour les commandes servies, utiliser l'ordre spécifié
+        return servedOrdersAscending 
+          ? a.timestamp.getTime() - b.timestamp.getTime()
+          : b.timestamp.getTime() - a.timestamp.getTime();
+      } else {
+        // Pour les autres commandes, toujours plus récent en premier
+        return b.timestamp.getTime() - a.timestamp.getTime();
+      }
+    });
   };
 
   // Fonction pour charger les commandes
@@ -38,28 +67,7 @@ export function ServerView() {
       }
 
       if (ordersData) {
-        const formattedOrders = (ordersData as SupabaseOrder[])
-          .map(formatOrder)
-          .sort((a, b) => {
-            // Définir l'ordre de priorité des statuts
-            const statusPriority = {
-              'pending': 0,    // Commandes validées en premier
-              'preparing': 1,  // Commandes en préparation ensuite
-              'ready': 2,      // Commandes prêtes après
-              'served': 3      // Commandes servies en dernier
-            };
-
-            // D'abord trier par statut
-            const statusDiff = statusPriority[a.status] - statusPriority[b.status];
-            if (statusDiff !== 0) return statusDiff;
-
-            // Si même statut, trier par date (plus récent en premier pour les commandes non servies)
-            if (a.status === 'served') {
-              return a.timestamp.getTime() - b.timestamp.getTime(); // Plus ancien en premier pour les servies
-            } else {
-              return b.timestamp.getTime() - a.timestamp.getTime(); // Plus récent en premier pour les autres
-            }
-          });
+        const formattedOrders = sortOrders((ordersData as SupabaseOrder[]).map(formatOrder));
         setOrders(formattedOrders);
       }
     } catch (error) {
@@ -70,24 +78,33 @@ export function ServerView() {
   };
 
   // Fonction pour formater une commande
-  const formatOrder = (order: SupabaseOrder): Order => ({
-    id: order.id,
-    tableNumber: order.table_number,
-    status: order.status,
-    timestamp: new Date(order.created_at || new Date()),
-    total: order.total,
-    items: order.order_items.map((item: SupabaseOrderItem) => ({
-      quantity: item.quantity,
-      dish: {
-        id: item.dish.id,
-        name: item.dish.name,
-        description: item.dish.description,
-        price: item.price_at_time || item.dish.price,
-        category: item.dish.category,
-        imageUrl: item.dish.image_url
-      }
-    }))
-  });
+  const formatOrder = (order: SupabaseOrder): Order => {
+    console.log('Ordre complet reçu de Supabase:', order);
+    const timestamp = order.created_at ? new Date(order.created_at) : (
+      order.updated_at ? new Date(order.updated_at) : new Date()
+    );
+    console.log('Timestamp utilisé:', timestamp);
+    
+    const formattedOrder = {
+      id: order.id,
+      tableNumber: order.table_number,
+      status: order.status,
+      timestamp,
+      total: order.total,
+      items: order.order_items.map((item: SupabaseOrderItem) => ({
+        quantity: item.quantity,
+        dish: {
+          id: item.dish.id,
+          name: item.dish.name,
+          description: item.dish.description,
+          price: item.price_at_time || item.dish.price,
+          category: item.dish.category,
+          imageUrl: item.dish.image_url
+        }
+      }))
+    };
+    return formattedOrder;
+  };
 
   useEffect(() => {
     // Charger les commandes initiales
@@ -253,6 +270,15 @@ export function ServerView() {
               <RotateCw className={`h-5 w-5 ${loading ? 'animate-spin' : ''}`} />
               {loading ? 'Chargement...' : 'Rafraîchir'}
             </button>
+            <button
+              onClick={() => {
+                setServedOrdersAscending(!servedOrdersAscending);
+                setOrders(prevOrders => [...sortOrders(prevOrders)]);
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
+            >
+              Commandes servies : {servedOrdersAscending ? 'Plus anciennes d\'abord' : 'Plus récentes d\'abord'}
+            </button>
           </div>
           <div className="flex items-center space-x-2">
             <Bell className="h-6 w-6 text-gray-500 dark:text-gray-400" />
@@ -269,7 +295,15 @@ export function ServerView() {
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Table {order.tableNumber}</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {new Date(order.timestamp).toLocaleTimeString()}
+                    {order.timestamp.toLocaleString('fr-FR', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      timeZone: 'Africa/Porto-Novo'
+                    })}
                   </p>
                 </div>
                 <div className={`px-3 py-1 rounded-full flex items-center space-x-1 ${getStatusColor(order.status)}`}>
