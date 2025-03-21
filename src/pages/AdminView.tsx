@@ -168,6 +168,7 @@ interface ReportData {
   totalRevenue: number;
   ordersByCategory: Record<string, number>;
   popularDishes: Array<{ name: string; quantity: number; revenue: number }>;
+  ordersByDate: Record<string, { orders: Order[]; totalRevenue: number; totalOrders: number }>;
 }
 
 interface OrderStats {
@@ -187,20 +188,106 @@ const categoryNames: Record<string, string> = {
 };
 
 function ReportSection() {
-  const [reportType, setReportType] = useState<'daily' | 'weekly'>('daily');
+  const [reportType, setReportType] = useState<'daily' | 'weekly' | 'monthly' | 'custom'>('daily');
+  const [customStartDate, setCustomStartDate] = useState<string>(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
+  const [customEndDate, setCustomEndDate] = useState<string>(() => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  });
   const [orders, setOrders] = useState<Order[]>([]);
   const [report, setReport] = useState<ReportData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
+  const [isOrdersByDateExpanded, setIsOrdersByDateExpanded] = useState(true);
 
-  // Charger les commandes initiales
   const loadOrders = async () => {
     try {
-      console.log('Début du chargement des commandes');
       setLoading(true);
       setError(null);
       
+      let startDate: Date;
+      let endDate: Date;
+
+      // Définir les dates en UTC directement
+      switch (reportType) {
+        case 'daily':
+          startDate = new Date();
+          startDate = new Date(Date.UTC(
+            startDate.getFullYear(),
+            startDate.getMonth(),
+            startDate.getDate(),
+            0, 0, 0, 0
+          ));
+          endDate = new Date(Date.UTC(
+            startDate.getFullYear(),
+            startDate.getMonth(),
+            startDate.getDate(),
+            23, 59, 59, 999
+          ));
+          break;
+        
+        case 'monthly':
+          startDate = new Date();
+          startDate = new Date(Date.UTC(
+            startDate.getFullYear(),
+            startDate.getMonth(),
+            1,
+            0, 0, 0, 0
+          ));
+          endDate = new Date(Date.UTC(
+            startDate.getFullYear(),
+            startDate.getMonth() + 1,
+            0,
+            23, 59, 59, 999
+          ));
+          break;
+
+        case 'weekly':
+          startDate = new Date();
+          startDate = new Date(Date.UTC(
+            startDate.getFullYear(),
+            startDate.getMonth(),
+            startDate.getDate() - 6,
+            0, 0, 0, 0
+          ));
+          endDate = new Date(Date.UTC(
+            startDate.getFullYear(),
+            startDate.getMonth(),
+            startDate.getDate() + 6,
+            23, 59, 59, 999
+          ));
+          break;
+
+        case 'custom':
+          if (!customStartDate || !customEndDate) {
+            setError('Veuillez sélectionner une période complète');
+            setLoading(false);
+            return;
+          }
+          startDate = new Date(customStartDate);
+          startDate = new Date(Date.UTC(
+            startDate.getFullYear(),
+            startDate.getMonth(),
+            startDate.getDate(),
+            0, 0, 0, 0
+          ));
+          endDate = new Date(customEndDate);
+          endDate = new Date(Date.UTC(
+            endDate.getFullYear(),
+            endDate.getMonth(),
+            endDate.getDate(),
+            23, 59, 59, 999
+          ));
+          break;
+      }
+
+      const startDateUTC = startDate.toISOString();
+      const endDateUTC = endDate.toISOString();
+
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
         .select(`
@@ -210,93 +297,87 @@ function ReportSection() {
             dish:dishes (*)
           )
         `)
-        .order('created_at', { ascending: false });
+        .eq('status', 'served')
+        .gte('created_at', startDateUTC)
+        .lte('created_at', endDateUTC)
+        .order('created_at', { ascending: true });
 
       if (ordersError) {
-        console.error('Erreur Supabase:', ordersError);
         throw ordersError;
       }
 
       if (!ordersData) {
-        console.error('Aucune donnée reçue de Supabase');
         throw new Error('Aucune donnée reçue');
       }
 
-      console.log('Nombre de commandes reçues:', ordersData.length);
-      
-      const formattedOrders = (ordersData as SupabaseOrder[]).map(order => {
-        const orderDate = order.created_at ? new Date(order.created_at) : new Date();
-        return {
-          id: order.id,
-          tableNumber: order.table_number,
-          status: order.status,
-          timestamp: orderDate,
-          total: order.total,
-          items: order.order_items.map((item: SupabaseOrderItem) => ({
-            quantity: item.quantity,
-            dish: {
-              id: item.dish.id,
-              name: item.dish.name,
-              description: item.dish.description,
-              price: item.price_at_time || item.dish.price,
-              category: item.dish.category,
-              imageUrl: item.dish.image_url
-            }
-          }))
-        };
-      });
+      const formattedOrders = (ordersData as SupabaseOrder[]).map(order => ({
+        id: order.id,
+        tableNumber: order.table_number,
+        status: order.status,
+        timestamp: new Date(order.created_at),
+        total: order.total,
+        items: order.order_items.map((item: SupabaseOrderItem) => ({
+          quantity: item.quantity,
+          dish: {
+            id: item.dish.id,
+            name: item.dish.name,
+            description: item.dish.description,
+            price: item.price_at_time || item.dish.price,
+            category: item.dish.category,
+            imageUrl: item.dish.image_url
+          }
+        }))
+      }));
 
-      console.log('Commandes formatées:', formattedOrders.length);
       setOrders(formattedOrders);
-      
-      // Générer le rapport immédiatement après la mise à jour des commandes
       await generateReportData(formattedOrders);
-      
       setLoading(false);
     } catch (error) {
-      console.error('Erreur détaillée lors du chargement des commandes:', error);
       setError('Erreur lors du chargement des données.');
       setLoading(false);
     }
   };
 
-  // Modifier la fonction generateReportData pour accepter les commandes en paramètre
-  const generateReportData = useCallback(async (currentOrders = orders) => {
+  const generateReportData = useCallback(async (servedOrders: Order[] = orders) => {
     try {
-      console.log('Début de la génération du rapport');
       setLoading(true);
-      const now = new Date();
-      const startDate = new Date(now);
-      const endDate = new Date(now);
 
-      if (reportType === 'daily') {
-        startDate.setHours(0, 0, 0, 0);
-        endDate.setHours(23, 59, 59, 999);
-      } else {
-        const day = startDate.getDay();
-        const diff = startDate.getDate() - day + (day === 0 ? -6 : 1);
-        startDate.setDate(diff);
-        startDate.setHours(0, 0, 0, 0);
-        
-        endDate.setDate(startDate.getDate() + 6);
-        endDate.setHours(23, 59, 59, 999);
+      if (servedOrders.length === 0) {
+        setReport({
+          totalOrders: 0,
+          totalRevenue: 0,
+          ordersByCategory: {},
+          popularDishes: [],
+          ordersByDate: {}
+        });
+        setLoading(false);
+        return;
       }
 
-      console.log(`Période du rapport: ${reportType}`, {
-        début: startDate.toLocaleString('fr-FR'),
-        fin: endDate.toLocaleString('fr-FR')
-      });
+      // Grouper les commandes par date
+      const ordersByDate = servedOrders.reduce((acc, order) => {
+        const date = order.timestamp.toLocaleDateString('fr-FR', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+        
+        if (!acc[date]) {
+          acc[date] = {
+            orders: [],
+            totalRevenue: 0,
+            totalOrders: 0
+          };
+        }
+        
+        acc[date].orders.push(order);
+        acc[date].totalRevenue += order.total;
+        acc[date].totalOrders += 1;
+        
+        return acc;
+      }, {} as Record<string, { orders: Order[], totalRevenue: number, totalOrders: number }>);
 
-      // Filtrer les commandes pour la période
-      const ordersToAnalyze = currentOrders.filter(order => {
-        const orderDate = order.timestamp;
-        return orderDate >= startDate && orderDate <= endDate;
-      });
-
-      console.log('Nombre de commandes à analyser:', ordersToAnalyze.length);
-
-      // Calculer les statistiques
-      const stats = ordersToAnalyze.reduce<OrderStats>((acc, order) => {
+      const stats = servedOrders.reduce<OrderStats>((acc, order) => {
         order.items.forEach(item => {
           const dishKey = item.dish.name;
           if (!acc.dishStats[dishKey]) {
@@ -326,27 +407,37 @@ function ReportSection() {
         .sort((a, b) => b.quantity - a.quantity)
         .slice(0, 5);
 
-      const report = {
-        totalOrders: ordersToAnalyze.length,
+      const newReport = {
+        totalOrders: servedOrders.length,
         totalRevenue: stats.totalRevenue,
         ordersByCategory: stats.ordersByCategory,
-        popularDishes
+        popularDishes,
+        ordersByDate
       };
 
-      console.log('Rapport généré:', report);
-      setReport(report);
+      setReport(newReport);
       setLoading(false);
     } catch (error) {
-      console.error('Erreur lors de la génération du rapport:', error);
       setError('Une erreur est survenue lors de la génération du rapport.');
       setLoading(false);
     }
-  }, [reportType, orders]);
+  }, []);
 
-  // Mettre à jour useEffect pour la souscription
   useEffect(() => {
-    loadOrders();
+    if (reportType !== 'custom') {
+      loadOrders();
+    } else {
+      setReport(null);
+    }
+  }, [reportType]);
 
+  useEffect(() => {
+    if (orders.length > 0) {
+      generateReportData(orders);
+    }
+  }, [orders, generateReportData]);
+
+  useEffect(() => {
     const ordersSubscription = supabase
       .channel('orders-channel')
       .on('postgres_changes', 
@@ -356,8 +447,13 @@ function ReportSection() {
           table: 'orders'
         }, 
         async (payload) => {
-          console.log('Changement détecté dans les commandes:', payload);
-          await loadOrders(); // Recharger toutes les commandes et régénérer le rapport
+          if (
+            (payload.eventType === 'UPDATE' && payload.new.status === 'served') ||
+            payload.eventType === 'INSERT' ||
+            payload.eventType === 'DELETE'
+          ) {
+            await loadOrders();
+          }
         }
       )
       .subscribe();
@@ -365,7 +461,7 @@ function ReportSection() {
     return () => {
       ordersSubscription.unsubscribe();
     };
-  }, []);
+  }, [reportType]);
 
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
@@ -375,14 +471,26 @@ function ReportSection() {
     let startDate = new Date(now);
     let endDate = new Date(now);
 
-    if (reportType === 'daily') {
-      startDate.setHours(0, 0, 0, 0);
-      endDate.setHours(23, 59, 59, 999);
-    } else {
-      startDate.setDate(now.getDate() - now.getDay());
-      endDate.setDate(startDate.getDate() + 6);
-      startDate.setHours(0, 0, 0, 0);
-      endDate.setHours(23, 59, 59, 999);
+    switch (reportType) {
+      case 'daily':
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      
+      case 'weekly':
+        startDate.setDate(now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1));
+        endDate.setDate(startDate.getDate() + 6);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setHours(23, 59, 59, 999);
+        break;
+      
+      case 'monthly':
+        startDate.setDate(1);
+        startDate.setHours(0, 0, 0, 0);
+        endDate.setMonth(endDate.getMonth() + 1);
+        endDate.setDate(0);
+        endDate.setHours(23, 59, 59, 999);
+        break;
     }
 
     const formatDate = (date: Date) => {
@@ -394,11 +502,22 @@ function ReportSection() {
       });
     };
 
+    const getPeriodTitle = () => {
+      switch (reportType) {
+        case 'daily':
+          return 'Journalier';
+        case 'weekly':
+          return 'Hebdomadaire';
+        case 'monthly':
+          return 'Mensuel';
+      }
+    };
+
     const html = `
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Rapport ${reportType === 'daily' ? 'Journalier' : 'Hebdomadaire'} - ${formatDate(now)}</title>
+          <title>Rapport ${getPeriodTitle()} - ${formatDate(now)}</title>
           <style>
             body { 
               font-family: Arial, sans-serif; 
@@ -451,7 +570,7 @@ function ReportSection() {
         </head>
         <body>
           <div class="header">
-            <h1>Rapport ${reportType === 'daily' ? 'Journalier' : 'Hebdomadaire'}</h1>
+            <h1>Rapport ${getPeriodTitle()}</h1>
             <div class="period">
               <p>Période : ${formatDate(startDate)} - ${formatDate(endDate)}</p>
             </div>
@@ -550,7 +669,9 @@ function ReportSection() {
 
       <div className={`mt-6 transition-all duration-200 ${isExpanded ? 'block' : 'hidden'}`}>
         {error ? (
-          <div className="text-red-600 dark:text-red-400 mb-4">{error}</div>
+          <div className="text-red-600 dark:text-red-400 mb-4 p-3 bg-red-100 dark:bg-red-900 rounded-lg">
+            {error}
+          </div>
         ) : loading ? (
           <div className="flex justify-center items-center h-40">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
@@ -558,50 +679,115 @@ function ReportSection() {
         ) : (
           <>
             <div className="flex flex-wrap gap-3 mb-6">
-              <div className="relative">
-                <select
-                  value={reportType}
-                  onChange={(e) => {
-                    setReportType(e.target.value as 'daily' | 'weekly');
-                    generateReportData();
-                  }}
-                  className="appearance-none bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 
-                           text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 
-                           focus:border-blue-500 block w-full p-2.5 pr-8"
-                  disabled={loading}
-                >
-                  <option value="daily">Rapport Journalier</option>
-                  <option value="weekly">Rapport Hebdomadaire</option>
-                </select>
-                <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-500 dark:text-gray-400" />
+              <div className="flex-1 min-w-[200px]">
+                <label htmlFor="reportType" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Type de Rapport
+                </label>
+                <div className="relative">
+                  <select
+                    id="reportType"
+                    value={reportType}
+                    onChange={(e) => {
+                      setReportType(e.target.value as 'daily' | 'weekly' | 'monthly' | 'custom');
+                      if (e.target.value !== 'custom') {
+                        loadOrders();
+                      }
+                    }}
+                    className="appearance-none bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 
+                             text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 
+                             focus:border-blue-500 block w-full p-2.5 pr-8"
+                    disabled={loading}
+                  >
+                    <option value="daily">Rapport Journalier (aujourd'hui)</option>
+                    <option value="weekly">Rapport Hebdomadaire (7 derniers jours)</option>
+                    <option value="monthly">Rapport Mensuel (mois en cours)</option>
+                    <option value="custom">Période Personnalisée</option>
+                  </select>
+                  <ChevronDown className="absolute right-2 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-500 dark:text-gray-400" />
+                </div>
               </div>
 
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  loadOrders();
-                }}
-                disabled={loading}
-                className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-md 
-                         hover:bg-blue-700 transition-colors disabled:bg-blue-400"
-              >
-                <FileText className="h-5 w-5" />
-                <span>{loading ? 'Génération...' : 'Générer'}</span>
-              </button>
+              {reportType === 'custom' && (
+                <div className="flex-1 min-w-[300px]">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Sélectionner la Période
+                    <span className="text-sm text-gray-500 ml-2">(Les deux dates sont requises)</span>
+                  </label>
+                  <div className="flex gap-2 items-center">
+                    <div className="flex-1">
+                      <label htmlFor="startDate" className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Date de début</label>
+                      <input
+                        id="startDate"
+                        type="date"
+                        value={customStartDate}
+                        onChange={(e) => {
+                          setCustomStartDate(e.target.value);
+                          setError(null);
+                        }}
+                        className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 
+                                 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 
+                                 focus:border-blue-500 p-2.5"
+                        max={customEndDate || undefined}
+                      />
+                    </div>
+                    <span className="text-gray-500 dark:text-gray-400 pt-6">à</span>
+                    <div className="flex-1">
+                      <label htmlFor="endDate" className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Date de fin</label>
+                      <input
+                        id="endDate"
+                        type="date"
+                        value={customEndDate}
+                        onChange={(e) => {
+                          setCustomEndDate(e.target.value);
+                          setError(null);
+                        }}
+                        className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 
+                                 text-gray-900 dark:text-white text-sm rounded-lg focus:ring-blue-500 
+                                 focus:border-blue-500 p-2.5"
+                        min={customStartDate || undefined}
+                      />
+                    </div>
+                  </div>
+                  {(reportType === 'custom' && (!customStartDate || !customEndDate)) && (
+                    <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
+                      {!customStartDate && !customEndDate 
+                        ? "Veuillez sélectionner une date de début et une date de fin"
+                        : !customStartDate 
+                          ? "Veuillez sélectionner une date de début"
+                          : "Veuillez sélectionner une date de fin"}
+                    </p>
+                  )}
+                </div>
+              )}
 
-              {report && !loading && (
+              <div className="flex items-end gap-2">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    handlePrint();
+                    loadOrders();
                   }}
-                  className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-md 
-                           hover:bg-green-700 transition-colors"
+                  disabled={loading || (reportType === 'custom' && (!customStartDate || !customEndDate))}
+                  className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-md 
+                           hover:bg-blue-700 transition-colors disabled:bg-blue-400 disabled:cursor-not-allowed h-[42px]"
                 >
-                  <Printer className="h-5 w-5" />
-                  <span>Imprimer</span>
+                  <FileText className="h-5 w-5" />
+                  <span>{loading ? 'Génération...' : 'Générer'}</span>
                 </button>
-              )}
+
+                {report && !loading && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePrint();
+                    }}
+                    className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-md 
+                             hover:bg-green-700 transition-colors h-[42px]"
+                  >
+                    <Printer className="h-5 w-5" />
+                    <span>Imprimer</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {report && (
@@ -634,6 +820,86 @@ function ReportSection() {
                     <p className="text-2xl font-bold text-gray-900 dark:text-white">
                       {report.popularDishes[0]?.name || 'N/A'}
                     </p>
+                  </div>
+                </div>
+
+                <div className="mt-8">
+                  <div className="flex justify-between items-center mb-4">
+                    <h4 className="text-lg font-medium text-gray-900 dark:text-white">
+                      Commandes par Date
+                    </h4>
+                    <button
+                      onClick={() => setIsOrdersByDateExpanded(!isOrdersByDateExpanded)}
+                      className="flex items-center text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    >
+                      <ChevronDown 
+                        className={`h-5 w-5 transform transition-transform duration-200 ${
+                          isOrdersByDateExpanded ? 'rotate-180' : ''
+                        }`}
+                      />
+                      <span className="ml-1 text-sm">
+                        {isOrdersByDateExpanded ? 'Réduire' : 'Développer'}
+                      </span>
+                    </button>
+                  </div>
+                  <div className={`space-y-6 transition-all duration-200 ${isOrdersByDateExpanded ? 'block' : 'hidden'}`}>
+                    {Object.entries(report.ordersByDate)
+                      .sort(([dateA], [dateB]) => new Date(dateB).getTime() - new Date(dateA).getTime())
+                      .map(([date, data]) => (
+                        <div key={date} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                          <div className="flex justify-between items-center mb-4">
+                            <h5 className="text-lg font-medium text-gray-900 dark:text-white">{date}</h5>
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                              {data.totalOrders} commande{data.totalOrders > 1 ? 's' : ''} • 
+                              {new Intl.NumberFormat('fr-FR', {
+                                style: 'currency',
+                                currency: 'XOF',
+                                currencyDisplay: 'narrowSymbol'
+                              }).format(data.totalRevenue).replace('XOF', 'Fr')}
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            {data.orders.map(order => (
+                              <div key={order.id} className="bg-white dark:bg-gray-800 rounded p-3">
+                                <div className="flex justify-between items-start">
+                                  <div>
+                                    <p className="font-medium text-gray-900 dark:text-white">
+                                      Table {order.tableNumber}
+                                    </p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                      {order.timestamp.toLocaleTimeString('fr-FR', {
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })}
+                                    </p>
+                                  </div>
+                                  <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {new Intl.NumberFormat('fr-FR', {
+                                      style: 'currency',
+                                      currency: 'XOF',
+                                      currencyDisplay: 'narrowSymbol'
+                                    }).format(order.total).replace('XOF', 'Fr')}
+                                  </p>
+                                </div>
+                                <div className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                                  {order.items.map(item => (
+                                    <div key={item.dish.id} className="flex justify-between">
+                                      <span>{item.quantity}x {item.dish.name}</span>
+                                      <span>
+                                        {new Intl.NumberFormat('fr-FR', {
+                                          style: 'currency',
+                                          currency: 'XOF',
+                                          currencyDisplay: 'narrowSymbol'
+                                        }).format(item.dish.price * item.quantity).replace('XOF', 'Fr')}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
                   </div>
                 </div>
 

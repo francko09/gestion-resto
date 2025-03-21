@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { CheckCircle, Clock, Coffee, Bell, RotateCw } from 'lucide-react';
+import { CheckCircle, Clock, Coffee, RotateCw } from 'lucide-react';
 import type { Order, SupabaseOrder, SupabaseOrderItem } from '../types';
 import { supabase } from '../lib/supabase';
 
@@ -7,16 +7,6 @@ export function ServerView() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [servedOrdersAscending, setServedOrdersAscending] = useState(true);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  // Fonction pour jouer le son de notification
-  const playNotification = () => {
-    if (audioRef.current) {
-      audioRef.current.play().catch(error => {
-        console.error('Erreur lors de la lecture du son:', error);
-      });
-    }
-  };
 
   // Fonction pour trier les commandes
   const sortOrders = (ordersToSort: Order[]) => {
@@ -169,9 +159,6 @@ export function ServerView() {
               });
             });
             
-            // Jouer le son de notification
-            playNotification();
-            
             // Afficher une notification système
             if ('Notification' in window && Notification.permission === 'granted') {
               new Notification('Nouvelle Commande', {
@@ -250,11 +237,6 @@ export function ServerView() {
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900 p-8 transition-colors duration-200">
-      {/* Élément audio pour la notification */}
-      <audio ref={audioRef} preload="auto">
-        <source src="/notification.mp3" type="audio/mpeg" />
-      </audio>
-
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div className="flex items-center gap-4">
@@ -279,12 +261,6 @@ export function ServerView() {
             >
               Commandes servies : {servedOrdersAscending ? 'Plus anciennes d\'abord' : 'Plus récentes d\'abord'}
             </button>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Bell className="h-6 w-6 text-gray-500 dark:text-gray-400" />
-            <span className="text-sm text-gray-500 dark:text-gray-400">
-              Notifications {Notification.permission === 'granted' ? 'activées' : 'désactivées'}
-            </span>
           </div>
         </div>
         
